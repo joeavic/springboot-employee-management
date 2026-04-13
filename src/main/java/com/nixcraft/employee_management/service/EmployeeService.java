@@ -3,6 +3,8 @@ package com.nixcraft.employee_management.service;
 import com.nixcraft.employee_management.dto.EmployeeRequestDTO;
 import com.nixcraft.employee_management.dto.EmployeeResponseDTO;
 import com.nixcraft.employee_management.entity.Employee;
+import com.nixcraft.employee_management.kafka.event.EmployeeEvent;
+import com.nixcraft.employee_management.kafka.producer.EmployeeProducer;
 import com.nixcraft.employee_management.mapper.EmployeeMapper;
 import com.nixcraft.employee_management.repository.EmployeeRepository;
 import org.slf4j.Logger;
@@ -22,6 +24,9 @@ public class EmployeeService {
     @Autowired
     private EmployeeRepository employeeRepository;
 
+    @Autowired
+    private EmployeeProducer employeeProducer;
+
     public List<EmployeeResponseDTO> getEmployees() {
 
         log.info("Request to get all Employees Data received {}", Instant.now());
@@ -37,13 +42,19 @@ public class EmployeeService {
     }
 
     public EmployeeResponseDTO addEmployee(EmployeeRequestDTO e) {
-
         log.info("EmployeeReq received {}", e);
-
         Employee employee = EmployeeMapper.toEntity(e);
         Employee saved = employeeRepository.save(employee);
-
         log.info("Employee Saved ");
+
+        // kafka event generation
+        EmployeeEvent event = new EmployeeEvent(
+                "CREATED",
+                saved.getId(),
+                saved.getName(),
+                saved.getSalary()
+        );
+        employeeProducer.publishEmployeeCreated(event);
 
         return EmployeeMapper.toEmployeeResponseDTO(saved);
     }
